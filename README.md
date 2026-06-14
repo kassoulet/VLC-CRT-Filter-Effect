@@ -71,6 +71,7 @@ To install, simply right click install.bat and run as administrator. The bat fil
 
 ## 🔧 Build
 
+### Windows
 > **Prerequisites:** Visual Studio 2022/2026 with "Desktop development with C++" workload, and the VLC 3.0.x SDK extracted to `C:\vlc-sdk\`
 
 ```bat
@@ -79,10 +80,19 @@ cd C:\crt-scanline-plugin
 build.bat
 ```
 
+### Linux
+> **Prerequisites:** `gcc`, `make`, and `libvlc-dev` (or `vlc-plugin-sdk`)
+
+```bash
+cd VLC-CRT-Filter-Effect
+make
+```
+
 ---
 
 ## 📦 Install
 
+### Windows
 **Option A** — Automated:
 ```bat
 :: Right-click > Run as administrator
@@ -93,6 +103,22 @@ install.bat
 1. 📁 Copy `build\libcrt_scanline_plugin.dll` → `C:\Program Files\VideoLAN\VLC\plugins\video_filter\`
 2. 📁 Copy `lua\crt_scanline_controller.lua` → `C:\Program Files\VideoLAN\VLC\lua\extensions\`
 3. 🔄 Run `vlc-cache-gen.exe` or delete `plugins.dat` to refresh the plugin cache
+
+### Linux
+**Option A** — Automated (System-wide):
+```bash
+sudo ./install.sh
+```
+
+**Option B** — Automated (Local User Only):
+```bash
+./install.sh --user
+```
+
+**Option C** — Manual:
+1. 📁 Copy `build/libcrt_scanline_plugin.so` → `/usr/lib/vlc/plugins/video_filter/` (or `~/.local/share/vlc/plugins/video_filter/`)
+2. 📁 Copy `lua/crt_scanline_controller.lua` → `~/.local/share/vlc/lua/extensions/`
+3. 🔄 Restart VLC to refresh the plugin cache
 
 ---
 
@@ -133,10 +159,10 @@ vlc --video-filter=crtscanline --crtscanline-darkness=50 --crtscanline-spacing=3
 
 | | |
 |:--|:--|
-| **Architecture** | Native VLC `video filter` module (C99), compiled as a standalone DLL |
+| **Architecture** | Native VLC `video filter` module (C99), compiled as a standalone shared library (`.dll` or `.so`) |
 | **Processing** | Operates on planar YUV frames (I420, J420, YV12, I422, etc.) — modulates Y plane per-row; chroma passes through unchanged |
-| **Compatibility** | VLC 3.0.x on Windows 64-bit — SDK from 3.0.23, ABI-compatible with any 3.0.x install |
-| **Compiler** | MSVC with `/std:c11` (C11 required for VLC header compatibility) |
+| **Compatibility** | VLC 3.0.x on Windows (64-bit) and Linux |
+| **Compiler** | MSVC (Windows) or GCC/Clang (Linux) with `/std:c11` or `-std=c11` |
 
 ---
 

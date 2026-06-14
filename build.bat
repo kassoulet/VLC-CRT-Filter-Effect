@@ -45,7 +45,6 @@ cl.exe /nologo /O2 /W3 /LD ^
     /DMODULE_STRING=\"crtscanline\" ^
     /D_CRT_SECURE_NO_WARNINGS ^
     /D_CRT_NONSTDC_NO_DEPRECATE ^
-    /FI"%SRC_DIR%\msvc_compat.h" ^
     /I"%VLC_SDK%\include\vlc\plugins" ^
     /I"%SRC_DIR%" ^
     "%SRC_DIR%\crt_scanline.c" ^

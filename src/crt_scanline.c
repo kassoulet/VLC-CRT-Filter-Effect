@@ -22,6 +22,15 @@
 # include "config.h"
 #endif
 
+#ifdef _MSC_VER
+# include "msvc_compat.h"
+#else
+# include <vlc_common.h>
+# ifndef N_
+#  define N_(str) (str)
+# endif
+#endif
+
 #include <math.h>
 
 #include <vlc_common.h>
@@ -85,6 +94,10 @@ static int Create( vlc_object_t *p_this )
 {
     filter_t *p_filter = (filter_t *)p_this;
 
+    msg_Dbg( p_filter, "Creating CRT Scanline filter. Input chroma: %4.4s, Output chroma: %4.4s",
+             (char *)&p_filter->fmt_in.video.i_chroma,
+             (char *)&p_filter->fmt_out.video.i_chroma );
+
     if( p_filter->fmt_in.video.i_chroma != p_filter->fmt_out.video.i_chroma )
     {
         msg_Err( p_filter, "Input and output chromas don't match" );
@@ -96,11 +109,16 @@ static int Create( vlc_object_t *p_this )
         CASE_PLANAR_YUV
             break;
         default:
-            msg_Dbg( p_filter,
-                     "Unsupported chroma (%4.4s), need planar YUV. "
-                     "Try disabling hardware decoding.",
-                     (char *)&p_filter->fmt_in.video.i_chroma );
+        {
+            char fcc[5];
+            memcpy(fcc, &p_filter->fmt_in.video.i_chroma, 4);
+            fcc[4] = '\0';
+            msg_Err( p_filter,
+                     "Unsupported chroma (%s), need planar YUV. "
+                     "Try disabling hardware decoding in Preferences > Input/Codecs.",
+                     fcc );
             return VLC_EGENERIC;
+        }
     }
 
     filter_sys_t *p_sys = malloc( sizeof( *p_sys ) );
@@ -121,6 +139,7 @@ static int Create( vlc_object_t *p_this )
 static void Destroy( vlc_object_t *p_this )
 {
     filter_t *p_filter = (filter_t *)p_this;
+    msg_Dbg( p_filter, "Destroying CRT Scanline filter" );
     free( p_filter->p_sys );
 }
 
@@ -166,11 +185,22 @@ static picture_t *Filter( filter_t *p_filter, picture_t *p_pic )
     /* Short-circuit: darkness=0 means effect is off */
     if( i_base_darkness == 0 )
     {
+        static int i_count = 0;
+        if( (i_count++ % 100) == 0 )
+            msg_Dbg( p_filter, "Filter active but darkness is 0 (bypassing)" );
+
         picture_Copy( p_outpic, p_pic );
         return CopyInfoAndRelease( p_outpic, p_pic );
     }
 
     const int i_height = p_pic->p[Y_PLANE].i_visible_lines;
+    static bool b_first = true;
+    if( b_first )
+    {
+        msg_Dbg( p_filter, "Processing first frame. Height: %d, Darkness: %d, Spacing: %d, Blend: %d",
+                 i_height, i_base_darkness, i_base_spacing, b_blend );
+        b_first = false;
+    }
 
     /* Scale spacing (ref: 480p) */
     double f_spacing = (double)i_base_spacing * (double)i_height / 480.0;
