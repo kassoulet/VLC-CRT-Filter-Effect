@@ -1,0 +1,90 @@
+name: Build VLC Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvlccore-dev gcc make
+
+      - name: Build
+        run: make
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: libcrt_scanline_plugin-linux
+          path: build/libcrt_scanline_plugin.so
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download and Extract VLC SDK
+        shell: powershell
+        run: |
+          # The SDK is bundled in the standard 7z binary package
+          $url = "https://download.videolan.org/pub/videolan/vlc/3.0.21/win64/vlc-3.0.21-win64.7z"
+          $dest = "vlc-sdk.7z"
+          Write-Host "Downloading VLC SDK from $url..."
+          curl.exe -L $url -o $dest
+          if ($LASTEXITCODE -ne 0) { throw "Download failed" }
+          
+          $file = Get-Item $dest
+          Write-Host "Downloaded file size: $($file.Length) bytes"
+          if ($file.Length -lt 10MB) { throw "Download corrupted or file too small" }
+
+          Write-Host "Extracting VLC SDK using 7z..."
+          & "7z.exe" x $dest -ovlc-sdk-temp
+          if ($LASTEXITCODE -ne 0) { throw "Extraction failed" }
+          
+          Write-Host "Searching for vlc_common.h..."
+          $header = Get-ChildItem -Path "vlc-sdk-temp" -Filter "vlc_common.h" -Recurse | Select-Object -First 1
+          if (-not $header) {
+              Write-Host "Listing extracted folders for debugging:"
+              Get-ChildItem -Path "vlc-sdk-temp" -Directory -Recurse | Select-Object FullName
+              throw "vlc_common.h not found in extracted files"
+          }
+          
+          # The header is in .../sdk/include/vlc/plugins/vlc_common.h
+          # We want the root of the SDK, which is the 'sdk' folder
+          $sdkRoot = $header.Directory.Parent.Parent.Parent.FullName
+          Write-Host "Found SDK root at: $sdkRoot"
+          
+          $sdkPath = "C:\vlc-sdk"
+          if (Test-Path $sdkPath) { Remove-Item -Recurse -Force $sdkPath }
+          Move-Item -Path "$sdkRoot" -Destination $sdkPath
+          
+          if (-not (Test-Path "$sdkPath\include\vlc\plugins\vlc_common.h")) {
+              throw "VLC SDK structure not as expected at $sdkPath"
+          }
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build
+        shell: cmd
+        run: |
+          set VLC_SDK=C:\vlc-sdk
+          call build.bat
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: libcrt_scanline_plugin-windows
+          path: build/libcrt_scanline_plugin.dll
